@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ParcelFlow</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a href="#/shipments" class="logo">ParcelFlow</a>
+      <nav>
+        <a href="#/track" data-testid="nav-track">Track a parcel</a>
+        <span data-testid="current-user" class="user" hidden></span>
+        <button data-testid="logout" class="link" hidden>Log out</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="view-login" class="view card narrow" hidden>
+        <h1>Dispatcher login</h1>
+        <form data-testid="login-form" novalidate>
+          <label>Email <input name="email" type="email" data-testid="login-email" autocomplete="username" /></label>
+          <label
+            >Password
+            <input name="password" type="password" data-testid="login-password" autocomplete="current-password"
+          /></label>
+          <p class="error" data-testid="login-error" role="alert" hidden></p>
+          <button type="submit" data-testid="login-submit">Log in</button>
+        </form>
+      </section>
+
+      <section id="view-shipments" class="view" hidden>
+        <div class="card">
+          <h1>New shipment</h1>
+          <form data-testid="shipment-form" class="grid" novalidate>
+            <label>Sender <input name="sender" data-testid="shipment-sender" /></label>
+            <label>Recipient <input name="recipient" data-testid="shipment-recipient" /></label>
+            <label class="wide">Address <input name="address" data-testid="shipment-address" /></label>
+            <label>Weight, kg <input name="weightKg" type="number" step="0.1" data-testid="shipment-weight" /></label>
+            <button type="submit" data-testid="shipment-submit">Create shipment</button>
+          </form>
+          <ul class="error" data-testid="shipment-errors" role="alert" hidden></ul>
+        </div>
+
+        <div class="card">
+          <div class="row">
+            <h1>Shipments</h1>
+            <label class="inline"
+              >Status
+              <select data-testid="status-filter">
+                <option value="">All</option>
+                <option value="created">Created</option>
+                <option value="assigned">Assigned</option>
+                <option value="in_transit">In transit</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+          </div>
+          <p data-testid="empty-state" class="muted" hidden>No shipments yet.</p>
+          <table data-testid="shipments-table" hidden>
+            <thead>
+              <tr>
+                <th>Tracking #</th>
+                <th>Recipient</th>
+                <th>Weight</th>
+                <th>Driver</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-track" class="view card narrow" hidden>
+        <h1>Track a parcel</h1>
+        <form data-testid="track-form" class="row" novalidate>
+          <input name="trackingNumber" placeholder="PF-000001" data-testid="track-input" />
+          <button type="submit" data-testid="track-submit">Track</button>
+        </form>
+        <p class="error" data-testid="track-error" role="alert" hidden></p>
+        <div data-testid="track-result" hidden>
+          <p>Status: <strong data-testid="track-status"></strong></p>
+          <ol data-testid="track-history"></ol>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
