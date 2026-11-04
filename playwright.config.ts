@@ -9,9 +9,10 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   timeout: 30_000,
   expect: { timeout: 5_000 },
+  // In CI every shard writes a blob report, the merge job turns them into one HTML report.
   reporter: process.env.CI
-    ? [['list'], ['html', { open: 'never' }], ['github']]
-    : [['list'], ['html', { open: 'never' }]],
+    ? [['blob'], ['github'], ['allure-playwright', { resultsDir: 'allure-results' }]]
+    : [['list'], ['html', { open: 'never' }], ['allure-playwright', { resultsDir: 'allure-results' }]],
   use: {
     baseURL: env.baseUrl,
     testIdAttribute: 'data-testid',
@@ -22,6 +23,9 @@ export default defineConfig({
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     { name: 'api', testDir: './tests/api' },
+    { name: 'grpc', testDir: './tests/grpc' },
+    // Database checks need PostgreSQL, so the project exists only when DATABASE_URL is set.
+    ...(env.databaseUrl ? [{ name: 'db', testDir: './tests/db' }] : []),
     {
       name: 'chromium',
       testDir: './tests/ui',
@@ -40,6 +44,6 @@ export default defineConfig({
     command: 'node demo-app/server.js',
     url: `${env.baseUrl}/api/health`,
     reuseExistingServer: !process.env.CI,
-    env: { PORT: String(env.port) },
+    env: { PORT: String(env.port), GRPC_PORT: String(env.grpcPort) },
   },
 });

@@ -1,12 +1,17 @@
 // ParcelFlow: a small shipment tracking app used as the system under test.
-// No dependencies, in-memory storage, deterministic behaviour for stable tests.
+// In-memory storage and deterministic behaviour for stable tests. REST + static UI on PORT,
+// gRPC tracking service on GRPC_PORT.
 import { createServer } from 'node:http';
+import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { startGrpcServer } from './grpc.js';
+import { connectDatabase } from './db.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
+const GRPC_PORT = Number(process.env.GRPC_PORT ?? 50051);
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), 'public');
 
 const USERS = [{ email: 'dispatcher@parcelflow.test', password: 'Passw0rd!', name: 'Dana Dispatcher' }];
@@ -30,11 +35,18 @@ const sessions = new Map();
 // workspace, so tests can run in parallel without seeing each other's shipments.
 const workspaces = new Map();
 
-function workspaceFor(req) {
-  const id = String(req.headers['x-workspace'] ?? 'default').slice(0, 64);
-  if (!workspaces.has(id)) workspaces.set(id, { shipments: new Map(), sequence: 0 });
+function workspaceById(rawId) {
+  const id = String(rawId).slice(0, 64);
+  if (!workspaces.has(id)) workspaces.set(id, { id, shipments: new Map(), sequence: 0 });
   return workspaces.get(id);
 }
+
+function workspaceFor(req) {
+  return workspaceById(req.headers['x-workspace'] ?? 'default');
+}
+
+// Status changes are published here, the gRPC WatchParcel stream listens to them.
+const events = new EventEmitter();
 
 function send(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -148,6 +160,7 @@ async function handleApi(req, res, url) {
       createdAt: now,
       history: [{ status: 'created', at: now }],
     };
+    await db.saveCreated(ws.id, shipment);
     ws.shipments.set(shipment.id, shipment);
     return send(res, 201, shipment);
   }
@@ -170,6 +183,8 @@ async function handleApi(req, res, url) {
       shipment.driver = body.driver;
       shipment.status = 'assigned';
       shipment.history.push({ status: 'assigned', at: new Date().toISOString() });
+      await db.saveStatusChange(shipment);
+      events.emit('shipment-changed', ws, shipment);
       return send(res, 200, shipment);
     }
 
@@ -185,6 +200,8 @@ async function handleApi(req, res, url) {
       }
       shipment.status = body.status;
       shipment.history.push({ status: body.status, at: new Date().toISOString() });
+      await db.saveStatusChange(shipment);
+      events.emit('shipment-changed', ws, shipment);
       return send(res, 200, shipment);
     }
   }
@@ -203,4 +220,10 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`ParcelFlow is running on http://localhost:${PORT}`));
+const db = await connectDatabase(process.env.DATABASE_URL);
+
+// gRPC starts first, so once /api/health answers both servers are ready.
+await startGrpcServer({ port: GRPC_PORT, workspaceById, events });
+server.listen(PORT, () =>
+  console.log(`ParcelFlow is running on http://localhost:${PORT}, gRPC on localhost:${GRPC_PORT}`),
+);
