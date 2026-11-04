@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package parcelflow.tracking.v1;
+
+// Public tracking service. Same data as GET /api/track/:number, plus a stream of status updates.
+// The workspace is passed in the `x-workspace` metadata key, like the X-Workspace HTTP header.
+service TrackingService {
+  // Returns the current state of a parcel.
+  // INVALID_ARGUMENT if the number does not match PF-NNNNNN, NOT_FOUND if there is no such parcel.
+  rpc GetParcel(GetParcelRequest) returns (GetParcelResponse);
+
+  // Sends the current state right away, then one message per status change.
+  // The stream ends after a final status (delivered or cancelled).
+  rpc WatchParcel(WatchParcelRequest) returns (stream WatchParcelResponse);
+}
+
+message GetParcelRequest {
+  string tracking_number = 1;
+}
+
+message GetParcelResponse {
+  Parcel parcel = 1;
+}
+
+message WatchParcelRequest {
+  string tracking_number = 1;
+}
+
+message WatchParcelResponse {
+  Parcel parcel = 1;
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_CREATED = 1;
+  STATUS_ASSIGNED = 2;
+  STATUS_IN_TRANSIT = 3;
+  STATUS_DELIVERED = 4;
+  STATUS_CANCELLED = 5;
+}
+
+message HistoryItem {
+  Status status = 1;
+  // ISO 8601 timestamp, same format as the REST API.
+  string at = 2;
+}
+
+message Parcel {
+  string tracking_number = 1;
+  Status status = 2;
+  repeated HistoryItem history = 3;
+}
