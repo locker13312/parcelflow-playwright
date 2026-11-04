@@ -1,6 +1,6 @@
 # ParcelFlow: Playwright + TypeScript test framework
 
-[![Tests](https://github.com/locker13312/autotest-dou/actions/workflows/tests.yml/badge.svg)](https://github.com/locker13312/autotest-dou/actions/workflows/tests.yml)
+[![Tests](https://github.com/locker13312/parcelflow-playwright/actions/workflows/tests.yml/badge.svg)](https://github.com/locker13312/parcelflow-playwright/actions/workflows/tests.yml)
 
 UI and API test automation for ParcelFlow, a small shipment tracking app. The app lives in this repo
 (`demo-app/`), so the suite runs anywhere with one command and does not depend on third-party sites.
@@ -65,33 +65,23 @@ tests/
 
 ## Design decisions
 
-**Every test gets its own data.** A fixture creates a unique workspace id per test and sends it as the
-`X-Workspace` header, both from the API client and from the browser (`extraHTTPHeaders`). Tests never
-see each other's shipments, so they run fully in parallel and in any order, with no shared cleanup step.
-
-**Setup through the API, checks through the UI.** UI tests that need a delivered or in-transit parcel
-create it with an API call (`createShipmentInStatus`) instead of clicking through the flow every time.
-The UI is only driven for the behaviour under test. This keeps tests fast and failures focused.
-
-**UI changes are verified on the backend too.** When a test creates a shipment through the form, it
-also reads it back from the API. A green toast on the screen is not proof that the data was saved.
-
-**Login happens once.** The `setup` project logs in through the real login form and stores the session
-with `storageState`. UI projects reuse it. Login tests opt out and start with a clean browser.
-
-**Schemas instead of field-by-field checks.** Every API response is validated against a strict Zod
-schema with `expectResponse()`. Unexpected or missing fields fail the test, which catches contract
-changes that a handful of `toBe` checks would miss.
-
-**Page objects hold locators, tests hold assertions.** Page objects expose locators and user actions.
-Assertions stay in the tests, so a failing test reads like a requirement. Locators use `data-testid`
-and roles, never CSS chains or XPath.
-
-**Data-driven negative tests.** Boundary values and forbidden transitions are tables in the test file.
-Adding a case is one line.
-
-**Lint rules for test quality.** `eslint-plugin-playwright` blocks `waitForTimeout`, `force: true`,
-conditionals in tests and non-web-first assertions.
+- Each test gets its own workspace. A fixture generates a workspace id and sends it as the
+  `X-Workspace` header from both the API client and the browser (`extraHTTPHeaders`), so tests never
+  see each other's shipments and run in parallel in any order without cleanup.
+- Preconditions go through the API, the UI is driven only for the behaviour under test. A test that
+  needs a delivered parcel creates it with `createShipmentInStatus` instead of clicking through the
+  whole flow.
+- Data created through the UI is read back from the API. A success toast alone does not prove the
+  shipment was saved.
+- Login runs once. The `setup` project logs in through the real form and saves `storageState`; UI
+  projects reuse it, login tests start with a clean browser.
+- API responses are validated against strict Zod schemas in `expectResponse()`, so unexpected or
+  missing fields fail the test.
+- Page objects expose locators and actions, assertions stay in tests. Locators use `data-testid` and
+  roles, no CSS chains or XPath.
+- Boundary values and forbidden status transitions are data tables, one line per case.
+- `eslint-plugin-playwright` blocks `waitForTimeout`, `force: true`, conditionals in tests and
+  non-web-first assertions.
 
 ## CI
 
