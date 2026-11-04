@@ -3,3 +3,7 @@ playwright-report
 test-results
 .auth
 package-lock.json
+allure-results
+allure-report
+blob-report
+src/grpc/generated
