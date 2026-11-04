@@ -78,6 +78,7 @@ async function renderShipments() {
     if (s.status === 'created') {
       const select = document.createElement('select');
       select.dataset.testid = 'driver-select';
+      select.setAttribute('aria-label', `Driver for ${s.trackingNumber}`);
       select.innerHTML = drivers.map((d) => `<option>${d}</option>`).join('');
       actions.append(
         select,
