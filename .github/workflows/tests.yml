@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1-5' # weekdays, 06:00 Kyiv time: catches breakage from dependency updates
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -12,7 +14,7 @@ concurrency:
 
 jobs:
   static-checks:
-    name: Lint and typecheck
+    name: Lint, types, proto
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,12 +26,33 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
+      - name: Generated gRPC client is up to date
+        run: |
+          npm run proto
+          git diff --exit-code src/grpc/generated
 
-  e2e:
-    name: API and UI tests
+  tests:
+    name: Tests (shard ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: static-checks
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: parcelflow
+          POSTGRES_PASSWORD: parcelflow
+          POSTGRES_DB: parcelflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U parcelflow" --health-interval 2s --health-retries 15
+    env:
+      DATABASE_URL: postgres://parcelflow:parcelflow@localhost:5432/parcelflow
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,11 +63,55 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run tests
-        run: npx playwright test
-      - name: Upload HTML report
+        run: npx playwright test --shard=${{ matrix.shard }}/2
+      - name: Upload blob report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 1
+      - name: Upload Allure results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-${{ matrix.shard }}
+          path: allure-results/
+          retention-days: 1
+
+  report:
+    name: Merge reports
+    runs-on: ubuntu-latest
+    needs: tests
+    if: ${{ !cancelled() }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: blob-report-*
+          path: all-blob-reports
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          path: allure-results
+          merge-multiple: true
+      - name: Merge into one HTML report
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+      - name: Build Allure report
+        run: npx allure generate allure-results --clean -o allure-report
+      - uses: actions/upload-artifact@v4
+        with:
           name: playwright-report
           path: playwright-report/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report/
           retention-days: 14
